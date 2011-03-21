@@ -1,3 +1,6 @@
 Repository of git utilities.
 
   git-recommit	collapse multiple commit deltas
+
+1. put the utilities somewhere that's in your PATH
+2. git <command> will then implicitly invoke git-<command> from your path

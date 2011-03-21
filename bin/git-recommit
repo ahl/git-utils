@@ -21,6 +21,40 @@ n,no-commit	don't automatically commit; leave changes uncommitted
 
 . git-sh-setup
 
+#
+# This lived in git-rebase--interactive until 1.7.4 -- we can remove this once
+# users are on 1.7.4.*.
+#
+require_clean_work_tree () {
+	git rev-parse --verify HEAD >/dev/null || exit 1
+	git update-index -q --ignore-submodules --refresh
+	err=0
+
+	if ! git diff-files --quiet --ignore-submodules
+	then
+		echo >&2 "Cannot $1: You have unstaged changes."
+		err=1
+	fi
+
+	if ! git diff-index --cached --quiet --ignore-submodules HEAD --
+	then
+		if [ $err = 0 ]
+		then
+		    echo >&2 "Cannot $1: Your index contains uncommitted changes."
+		else
+		    echo >&2 "Additionally, your index contains uncommitted changes."
+		fi
+		err=1
+	fi
+
+	if [ $err = 1 ]
+	then
+		test -n "$2" && echo >&2 "$2"
+		exit 1
+	fi
+}
+
+
 require_work_tree
 cd_to_toplevel
 
@@ -37,7 +71,7 @@ done
 
 test $# -gt 1 && usage
 
-base=ORIGIN
+base=origin
 test $# -gt 0 && base=$1
 
 require_clean_work_tree "recommit" "Please commit or stash them."
