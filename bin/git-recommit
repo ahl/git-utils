@@ -54,7 +54,6 @@ require_clean_work_tree () {
 	fi
 }
 
-
 require_work_tree
 cd_to_toplevel
 
@@ -71,7 +70,10 @@ done
 
 test $# -gt 1 && usage
 
-base=origin
+branch="$(git symbolic-ref HEAD 2>/dev/null)" || fail "detached head"
+branch=${branch##refs/heads/}
+
+base="origin/$branch"
 test $# -gt 0 && base=$1
 
 require_clean_work_tree "recommit" "Please commit or stash them."
@@ -79,26 +81,26 @@ require_clean_work_tree "recommit" "Please commit or stash them."
 git rev-parse --verify $base >/dev/null 2>&1 || die "invalid revision '$base'"
 
 head=$(git rev-parse HEAD)
-origin=$(git rev-parse $base)
+base=$(git rev-parse $base)
 
 HEADNAME=$(git symbolic-ref HEAD)
 
 #
 # Reset the workspace back to a previous state.
 #
-output=$(git checkout origin 2>&1)
+output=$(git checkout $base 2>&1)
 if test $? != 0
 then
 	echo $output
-	die "failed to checkout origin"
+	die "failed to checkout base revision"
 fi
 
 newhead=$(git rev-parse HEAD)
 
-git update-ref -m "recommit: $HEADNAME $origin" $HEADNAME $newhead $head
+git update-ref -m "recommit: $HEADNAME $base" $HEADNAME $newhead $head
 git symbolic-ref HEAD $HEADNAME
 
-git rev-list --reverse $origin..$head | \
+git rev-list --reverse $base..$head | \
 while read rev
 do
 	echo replaying $rev
@@ -111,7 +113,7 @@ then
 	# Seed the commit message and perform the commit.
 	#
 	COMMIT_FILE=$GIT_DIR/recommit_msg
-	git log --pretty="%B" $origin..$head | \
+	git log --pretty="%B" $base..$head | \
 	    sed -n '$!p' | sort | uniq >$COMMIT_FILE
 	git commit --file="$COMMIT_FILE" --edit
 	rm -f $COMMIT_FILE

@@ -1,0 +1,25 @@
+#!/bin/sh
+#
+# Copyright (c) 2011 by Delphix.
+# All rights reserved.
+#
+
+branch="$(git symbolic-ref HEAD 2>/dev/null)" || fail "detached head"
+branch=${branch##refs/heads/}
+
+base="origin/$branch"
+
+while test $# != 0
+do
+	case "$1" in
+	-h)	git diff -h 2>&1 | sed s/diff/pdiff/ 1>&2; exit $? ;;
+	--)	break ;;
+	-*)	args="$args $1" ;;
+	*)	break ;;
+	esac
+	shift
+done
+
+git rev-parse --verify $base >/dev/null 2>&1 || die "invalid revision '$base'"
+
+exec git diff $args $base -- $*

@@ -1,5 +1,6 @@
 Repository of git utilities.
 
+  git-pdiff	diff against the parent regardless of commits
   git-recommit	collapse multiple commit deltas
 
 1. put the utilities somewhere that's in your PATH
