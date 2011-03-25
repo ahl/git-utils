@@ -4,10 +4,10 @@
 # All rights reserved.
 #
 
-branch="$(git symbolic-ref HEAD 2>/dev/null)" || fail "detached head"
-branch=${branch##refs/heads/}
+SUBDIRECTORY_OK=Yes
+. git-sh-setup
 
-base="origin/$branch"
+require_work_tree
 
 while test $# != 0
 do
@@ -20,6 +20,20 @@ do
 	shift
 done
 
-git rev-parse --verify $base >/dev/null 2>&1 || die "invalid revision '$base'"
+# Figure out what branch we're in.
+branch="$(git symbolic-ref HEAD 2>/dev/null)" || die "detached head"
+branch=${branch##refs/heads/}
 
-exec git diff $args $base -- $*
+# Figure out what branch in the origin we should compare to.
+mergebranch="$(git config --get branch.$branch.merge)" || \
+    die "branch.$branch.merge is not set"
+mergebranch=${mergebranch##refs/heads/}
+
+# Make sure the revision we've constructed maps to something real.
+git rev-parse --verify origin/$mergebranch >/dev/null 2>&1 || \
+    die "invalid revision 'origin/$mergebranch'"
+
+# Find the common ancestor.
+mergebase=$(git merge-base origin/$mergebranch HEAD)
+
+exec git diff $args $mergebase -- $*

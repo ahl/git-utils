@@ -4,19 +4,13 @@
 # All rights reserved.
 #
 
-USAGE="[--no-commit | -n] [revision]"
-LONG_USAGE="\
-Collapse the commits since the specified revision (the default is ORIGIN).
-If the --no-commit option is specified, the changes are left uncommitted
-in the workspace. Otherwise, git commit is invoked with the sorted, uniquified
-concatenation of the comments from the collaped commits.
-"
-
 SUBDIRECTORY_OK=Yes
-OTPIONS_SPEC="\
-git recommit [options]
+OPTIONS_SPEC="\
+git recommit [options] [revision]
 --
-n,no-commit	don't automatically commit; leave changes uncommitted
+n,no-commit don't automatically commit; leave files uncommitted
+m,message=  specify commit message
+F,file=     read log from file
 "
 
 . git-sh-setup
@@ -57,10 +51,36 @@ require_clean_work_tree () {
 require_work_tree
 cd_to_toplevel
 
+COMMIT_FILE=$GIT_DIR/recommit_msg
+
+no_commit=
+message=
+file=
+
 while test $# != 0
 do
 	case "$1" in
-	-n|--no-commit) no_commit=t ;;
+	-n|--no-commit)
+		no_commit=t
+		;;
+	-m|--message)
+		message=t
+		message_data="$2"
+		shift
+		;;
+	--message=*)
+		message=t
+		message_data="$(expr " $1" : ' --message=\(.*\)')"
+		;;
+	-F|--file)
+		file=t
+		file_data="$2"
+		shift
+		;;
+	--file=*)
+		file=t
+		file_data="$(expr " $1" : ' --message=\(.*\)')"
+		;;
 	--) shift; break ;;
 	-*) usage ;;
 	*) break ;;
@@ -68,55 +88,60 @@ do
 	shift
 done
 
+case "$no_commit,$file,$message" in
+	t,*t*)	die "fatal: Option -n cannot be combined with -m or -F." ;;
+	,t,t)	die "fatal: Option -m cannot be combined with -F." ;;
+esac
+
 test $# -gt 1 && usage
-
-branch="$(git symbolic-ref HEAD 2>/dev/null)" || fail "detached head"
-branch=${branch##refs/heads/}
-
-base="origin/$branch"
-test $# -gt 0 && base=$1
 
 require_clean_work_tree "recommit" "Please commit or stash them."
 
-git rev-parse --verify $base >/dev/null 2>&1 || die "invalid revision '$base'"
-
-head=$(git rev-parse HEAD)
-base=$(git rev-parse $base)
-
-HEADNAME=$(git symbolic-ref HEAD)
-
-#
-# Reset the workspace back to a previous state.
-#
-output=$(git checkout $base 2>&1)
-if test $? != 0
+if test $# -gt 0
 then
-	echo $output
-	die "failed to checkout base revision"
+	base=$1
+else
+
+	branch="$(git symbolic-ref HEAD 2>/dev/null)" || \
+	    die "fatal: Detached head."
+	branch=${branch##refs/heads/}
+
+	mergebranch="$(git config --get branch.$branch.merge)" || \
+	    die "fatal: branch.$branch.merge is not set."
+	mergebranch=${mergebranch##refs/heads/}
+
+	base=$(git rev-parse origin/$mergebranch)
 fi
 
-newhead=$(git rev-parse HEAD)
+git rev-parse --verify $base >/dev/null 2>&1 || \
+    die "fatal: Invalid revision '$base'."
 
-git update-ref -m "recommit: $HEADNAME $base" $HEADNAME $newhead $head
-git symbolic-ref HEAD $HEADNAME
+oldhead=$(git rev-parse HEAD)
 
-git rev-list --reverse $base..$head | \
-while read rev
-do
-	echo replaying $rev
-	git cherry-pick -n $rev
-done
+#
+# Find the common ancestor to roll back to.
+#
+mergebase=$(git merge-base $base $oldhead)
 
-if test t != "$no_commit"
-then
-	#
-	# Seed the commit message and perform the commit.
-	#
-	COMMIT_FILE=$GIT_DIR/recommit_msg
-	git log --pretty="%B" $base..$head | \
-	    sed -n '$!p' | sort | uniq >$COMMIT_FILE
-	git commit --file="$COMMIT_FILE" --edit
-	rm -f $COMMIT_FILE
-fi
+#
+# Reset HEAD to our common ancestor while preserving the list of added,
+# deleted, or modified files.
+#
+git reset --soft $mergebase
+
+case "$no_commit,$file,$message" in
+	t,*)	;;
+	,t,)	git commit --file="$file_data" ;;
+	,,t)	git commit --message="$message_data" ;;
+	,,)
+		#
+		# Seed the commit message and perform the commit.
+		#
+		git log --pretty="%B" $mergebase..$oldhead | \
+		    sed -n '$!p' | sort | uniq >$COMMIT_FILE
+		git commit --file=$COMMIT_FILE --edit
+		rm -f $COMMIT_FILE
+		;;
+esac
 
 exit 0
