@@ -1,0 +1,156 @@
+#!/usr/bin/python2.6
+#
+# Copyright (c) 2011 by Delphix.
+# All rights reserved.
+#
+
+#
+# Git integration with post-review. It both uses the post-review python
+# modules and borrows from its source code (hence the copyright notice below).
+#
+
+#
+# Copyright (c) 2007-2010  Christian Hammond
+# Copyright (c) 2007-2010  David Trowbridge
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy of
+# this software and associated documentation files (the "Software"), to deal in
+# the Software without restriction, including without limitation the rights to
+# use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+# of the Software, and to permit persons to whom the Software is furnished to do
+# so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+
+__requires__ = 'RBTools==0.3.2'
+import os
+import sys
+import re
+import rbtools.postreview
+
+def main():
+    origcwd = os.path.abspath(os.getcwd())
+
+    if 'APPDATA' in os.environ:
+        homepath = os.environ['APPDATA']
+    elif 'HOME' in os.environ:
+        homepath = os.environ["HOME"]
+    else:
+        homepath = ''
+
+    # Load the config and cookie files
+    cookie_file = os.path.join(homepath, ".post-review-cookies.txt")
+    rbtools.postreview.load_config_files(homepath)
+
+    args = rbtools.postreview.parse_options([])
+
+    repository_info, tool = rbtools.postreview.determine_client()
+
+    # Verify that options specific to an SCM Client have not been mis-used.
+    tool.check_options()
+
+    # Try to find a valid Review Board server to use.
+    if rbtools.postreview.options.server:
+        server_url = options.server
+    else:
+        server_url = tool.scan_for_server(repository_info)
+
+    if not server_url:
+        print "Unable to find a Review Board server for this source code tree."
+        sys.exit(1)
+
+    server = rbtools.postreview.ReviewBoardServer(server_url,
+        repository_info, cookie_file)
+    server.check_api_version()
+
+    if repository_info.supports_changesets:
+        changenum = tool.get_changenum(args)
+    else:
+        changenum = None
+
+    if rbtools.postreview.options.revision_range:
+        diff = tool.diff_between_revisions(options.revision_range, args,
+                                           repository_info)
+        parent_diff = None
+    elif rbtools.postreview.options.label and isinstance(tool, ClearCaseClient):
+        diff, parent_diff = tool.diff_label(options.label)
+    elif rbtools.postreview.options.diff_filename:
+        parent_diff = None
+
+        if options.diff_filename == '-':
+            diff = sys.stdin.read()
+        else:
+            try:
+                fp = open(os.path.join(origcwd, options.diff_filename), 'r')
+                diff = fp.read()
+                fp.close()
+            except IOError, e:
+                rbtools.postreview.die("Unable to open diff filename: %s" % e)
+    else:
+        diff, parent_diff = tool.diff(args)
+
+    if len(diff) == 0:
+        rbtools.postreview.die("There don't seem to be any diffs!")
+
+    # Let's begin.
+    server.login()
+
+    rid = rbtools.postreview.execute(
+        ["git", "config", "--get", "reviewboard.rid"],
+        ignore_errors=True).strip()
+    if rid:
+        if server.get_review_request(rid)["status"] != "pending":
+	    rid = None
+    if rid:
+	rbtools.postreview.options.rid = rid
+
+
+    rbtools.postreview.options.description = rbtools.postreview.execute(
+        ["git", "log", "--pretty=%B", "-1"],
+        ignore_errors=True).strip()
+
+    bugs = []
+
+    for line in rbtools.postreview.options.description.split("\n"):
+        try:
+            bugs.append(re.compile("^(\d+)").match(line).group(1))
+        except Exception:
+            pass
+
+    rbtools.postreview.options.bugs_closed = ",".join(bugs)
+
+    if bugs:
+        rbtools.postreview.options.summary = "fixes for %s" % \
+            rbtools.postreview.options.bugs_closed
+
+    review_url = rbtools.postreview.tempt_fate(server, tool, changenum,
+			    diff_content=diff,
+                            parent_diff_content=parent_diff,
+                            submit_as=rbtools.postreview.options.submit_as)
+
+    rid = re.compile("%sr/(.*)/" % server_url).match(review_url).group(1)
+
+    rbtools.postreview.execute(["git", "config", "reviewboard.rid", rid],
+        ignore_errors=True).strip()
+
+    # Load the review up in the browser if requested to:
+    if rbtools.postreview.options.open_browser:
+        try:
+            import webbrowser
+            if 'open_new_tab' in dir(webbrowser):
+                # open_new_tab is only in python 2.5+
+                webbrowser.open_new_tab(review_url)
+            elif 'open_new' in dir(webbrowser):
+                webbrowser.open_new(review_url)
+            else:
+                os.system( 'start %s' % review_url )
+        except:
+            print 'Error opening review URL: %s' % review_url
+
+
+main()
+
+sys.exit(0)
+

@@ -2,6 +2,10 @@ Repository of git utilities.
 
   git-pdiff	diff against the parent regardless of commits
   git-recommit	collapse multiple commit deltas
+  git-review	review board integration
 
-1. put the utilities somewhere that's in your PATH
-2. git <command> will then implicitly invoke git-<command> from your path
+
+How to install:
+
+ o put the utilities somewhere that's in your PATH
+ o git <command> will then implicitly invoke git-<command> from your path
