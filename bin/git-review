@@ -105,25 +105,24 @@ def main():
 	    rid = None
     if rid:
 	rbtools.postreview.options.rid = rid
+    else:
+        rbtools.postreview.options.description = rbtools.postreview.execute(
+            ["git", "log", "--pretty=%B", "-1"],
+            ignore_errors=True).strip()
 
+        bugs = []
 
-    rbtools.postreview.options.description = rbtools.postreview.execute(
-        ["git", "log", "--pretty=%B", "-1"],
-        ignore_errors=True).strip()
+        for line in rbtools.postreview.options.description.split("\n"):
+            try:
+                bugs.append(re.compile("^(\d+)").match(line).group(1))
+            except Exception:
+                pass
 
-    bugs = []
+        rbtools.postreview.options.bugs_closed = ",".join(bugs)
 
-    for line in rbtools.postreview.options.description.split("\n"):
-        try:
-            bugs.append(re.compile("^(\d+)").match(line).group(1))
-        except Exception:
-            pass
-
-    rbtools.postreview.options.bugs_closed = ",".join(bugs)
-
-    if bugs:
-        rbtools.postreview.options.summary = "fixes for %s" % \
-            rbtools.postreview.options.bugs_closed
+        if bugs:
+            rbtools.postreview.options.summary = "fixes for %s" % \
+                rbtools.postreview.options.bugs_closed
 
     review_url = rbtools.postreview.tempt_fate(server, tool, changenum,
 			    diff_content=diff,
