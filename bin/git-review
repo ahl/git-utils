@@ -13,15 +13,15 @@
 # Copyright (c) 2007-2010  Christian Hammond
 # Copyright (c) 2007-2010  David Trowbridge
 #
-# Permission is hereby granted, free of charge, to any person obtaining a copy of
-# this software and associated documentation files (the "Software"), to deal in
-# the Software without restriction, including without limitation the rights to
-# use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
-# of the Software, and to permit persons to whom the Software is furnished to do
-# so, subject to the following conditions:
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to
+# deal in the Software without restriction, including without limitation the
+# rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+# sell copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
 #
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
 #
 
 __requires__ = 'RBTools==0.3.2'
@@ -29,6 +29,7 @@ import os
 import sys
 import re
 import rbtools.postreview
+
 
 def main():
     origcwd = os.path.abspath(os.getcwd())
@@ -74,7 +75,8 @@ def main():
         diff = tool.diff_between_revisions(options.revision_range, args,
                                            repository_info)
         parent_diff = None
-    elif rbtools.postreview.options.label and isinstance(tool, ClearCaseClient):
+    elif rbtools.postreview.options.label and isinstance(tool,
+        ClearCaseClient):
         diff, parent_diff = tool.diff_label(options.label)
     elif rbtools.postreview.options.diff_filename:
         parent_diff = None
@@ -102,17 +104,19 @@ def main():
         ignore_errors=True).strip()
     if rid:
         if server.get_review_request(rid)["status"] != "pending":
-	    rid = None
+            rid = None
     if rid:
-	rbtools.postreview.options.rid = rid
+        rbtools.postreview.options.rid = rid
     else:
         rbtools.postreview.options.description = rbtools.postreview.execute(
             ["git", "log", "--pretty=%B", "-1"],
             ignore_errors=True).strip()
 
         bugs = []
+	lastbug = None
 
         for line in rbtools.postreview.options.description.split("\n"):
+            lastbug = line
             try:
                 bugs.append(re.compile("^(\d+)").match(line).group(1))
             except Exception:
@@ -121,11 +125,14 @@ def main():
         rbtools.postreview.options.bugs_closed = ",".join(bugs)
 
         if bugs:
-            rbtools.postreview.options.summary = "fixes for %s" % \
-                rbtools.postreview.options.bugs_closed
+            if len(bugs) == 1:
+                rbtools.postreview.options.summary = "fix for " + lastbug
+            else:
+                rbtools.postreview.options.summary = ("fixes for %s" %
+                    rbtools.postreview.options.bugs_closed)
 
     review_url = rbtools.postreview.tempt_fate(server, tool, changenum,
-			    diff_content=diff,
+                            diff_content=diff,
                             parent_diff_content=parent_diff,
                             submit_as=rbtools.postreview.options.submit_as)
 
@@ -144,12 +151,10 @@ def main():
             elif 'open_new' in dir(webbrowser):
                 webbrowser.open_new(review_url)
             else:
-                os.system( 'start %s' % review_url )
+                os.system('start %s' % review_url)
         except:
             print 'Error opening review URL: %s' % review_url
-
 
 main()
 
 sys.exit(0)
-
