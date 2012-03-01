@@ -136,7 +136,7 @@ def main():
                             parent_diff_content=parent_diff,
                             submit_as=rbtools.postreview.options.submit_as)
 
-    rid = re.compile("%sr/(.*)/" % server_url).match(review_url).group(1)
+    rid = re.compile("%s/*r/(.*)/" % server_url).match(review_url).group(1)
 
     rbtools.postreview.execute(["git", "config", "reviewboard.rid", rid],
         ignore_errors=True).strip()
