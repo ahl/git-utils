@@ -1,0 +1,13 @@
+#!/bin/sh
+#
+# Copyright (c) 2011 by Delphix.
+# All rights reserved.
+#
+
+url=$(git config remote.origin.url)
+
+url=${url#ssh://}
+id=${url%%/*}
+path=/${url#*/}/.git
+
+exec ssh $id git --git-dir=$path config gate.release
