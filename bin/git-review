@@ -29,10 +29,28 @@ import os
 import sys
 import re
 import rbtools.postreview
+from optparse import OptionParser
+
+
+def diff_files(self, files):
+    self.merge_base = rbtools.postreview.execute(["git", "merge-base",
+        self.upstream_branch, self.head_ref]).strip()
+    rev_range = "%s.." % (self.merge_base)
+    diff_lines = rbtools.postreview.execute(["git", "diff", "--no-color",
+        "--full-index", "--no-ext-diff", rev_range, "--", "".join(files)])
+    parent_diff_lines = None
+
+    return (diff_lines, parent_diff_lines)
 
 
 def main():
     origcwd = os.path.abspath(os.getcwd())
+
+    parser = OptionParser(usage="%prog [-l filelist.txt]")
+    parser.add_option("-l", "--file-list",
+                      dest="file_list", default=None,
+                      help="diff only the file names listed in the file")
+    (opts, args) = parser.parse_args(sys.argv[1:])
 
     if 'APPDATA' in os.environ:
         homepath = os.environ['APPDATA']
@@ -72,24 +90,31 @@ def main():
         changenum = None
 
     if rbtools.postreview.options.revision_range:
-        diff = tool.diff_between_revisions(options.revision_range, args,
-                                           repository_info)
+        diff = tool.diff_between_revisions(
+            rbtools.postreview.options.revision_range, args, repository_info)
         parent_diff = None
     elif rbtools.postreview.options.label and isinstance(tool,
         ClearCaseClient):
-        diff, parent_diff = tool.diff_label(options.label)
+        diff, parent_diff = tool.diff_label(rbtools.postreview.options.label)
     elif rbtools.postreview.options.diff_filename:
         parent_diff = None
 
-        if options.diff_filename == '-':
+        if rbtools.postreview.options.diff_filename == '-':
             diff = sys.stdin.read()
         else:
             try:
-                fp = open(os.path.join(origcwd, options.diff_filename), 'r')
+                fp = open(os.path.join(origcwd,
+                    rbtools.postreview.options.diff_filename), 'r')
                 diff = fp.read()
                 fp.close()
             except IOError, e:
                 rbtools.postreview.die("Unable to open diff filename: %s" % e)
+    elif opts.file_list:
+        f = open(opts.file_list)
+        files = [fn.strip() for fn in f.readlines()]
+        f.close()
+        tool.__class__.diff_files = diff_files
+        diff, parent_diff = tool.diff_files(files)
     else:
         diff, parent_diff = tool.diff(args)
 
@@ -113,7 +138,7 @@ def main():
             ignore_errors=True).strip()
 
         bugs = []
-	lastbug = None
+        lastbug = None
 
         for line in rbtools.postreview.options.description.split("\n"):
             lastbug = line

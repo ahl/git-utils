@@ -137,8 +137,8 @@ case "$no_commit,$file,$message" in
 		#
 		# Seed the commit message and perform the commit.
 		#
-		git log --pretty="%B" $mergebase..$oldhead | \
-		    sed -n '$!p' | sort | uniq >$COMMIT_FILE
+		git log --pretty="%B" $mergebase..$oldhead | sed -n '$!p' | \
+		    grep -v '^Merge branch' | sort | uniq >$COMMIT_FILE
 		git commit --file=$COMMIT_FILE --edit
 		rm -f $COMMIT_FILE
 		;;
