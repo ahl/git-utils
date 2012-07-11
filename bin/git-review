@@ -37,7 +37,7 @@ def diff_files(self, files):
         self.upstream_branch, self.head_ref]).strip()
     rev_range = "%s.." % (self.merge_base)
     diff_lines = rbtools.postreview.execute(["git", "diff", "--no-color",
-        "--full-index", "--no-ext-diff", rev_range, "--", "".join(files)])
+        "--full-index", "--no-ext-diff", rev_range, "--"] + files)
     parent_diff_lines = None
 
     return (diff_lines, parent_diff_lines)
