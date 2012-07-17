@@ -124,12 +124,31 @@ def main():
     # Let's begin.
     server.login()
 
+    branch = os.path.basename(rbtools.postreview.execute(
+        ["git", "symbolic-ref", "HEAD"], ignore_errors=True).strip())
+
+    #
+    # Check for the legacy location of the review id.
+    #
     rid = rbtools.postreview.execute(
         ["git", "config", "--get", "reviewboard.rid"],
         ignore_errors=True).strip()
     if rid:
         if server.get_review_request(rid)["status"] != "pending":
             rid = None
+        rbtools.postreview.execute(
+            ["git", "config", "--remove-section", "reviewboard"])
+
+    if opts.file_list:
+        ridname = "rid-" + re.sub(r'[^a-z-]', r'-', opts.file_list)
+    else:
+        ridname = "rid"
+
+    if not rid:
+        rid = rbtools.postreview.execute(
+            ["git", "config", "--get", "branch." + branch + "." + ridname],
+            ignore_errors=True).strip()
+
     if rid:
         rbtools.postreview.options.rid = rid
     else:
@@ -163,7 +182,8 @@ def main():
 
     rid = re.compile("%s/*r/(.*)/" % server_url).match(review_url).group(1)
 
-    rbtools.postreview.execute(["git", "config", "reviewboard.rid", rid],
+    rbtools.postreview.execute(["git", "config",
+        "branch." + branch + "." + ridname, rid],
         ignore_errors=True).strip()
 
     # Load the review up in the browser if requested to:
