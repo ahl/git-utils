@@ -148,7 +148,7 @@ def main():
         rid = rbtools.postreview.execute(
             ["git", "config", "--get", "branch." + branch + "." + ridname],
             ignore_errors=True).strip()
-        if server.get_review_request(rid)["status"] != "pending":
+        if rid and server.get_review_request(rid)["status"] != "pending":
             rid = None
 
     if rid:
