@@ -24,19 +24,21 @@
 # all copies or substantial portions of the Software.
 #
 
-__requires__ = 'RBTools==0.3.2'
+__requires__ = 'RBTools==0.4.2'
 import os
 import sys
 import re
 import rbtools.postreview
+import rbtools.clients
+import rbtools.utils.process
 from optparse import OptionParser
 
 
 def diff_files(self, files):
-    self.merge_base = rbtools.postreview.execute(["git", "merge-base",
+    self.merge_base = rbtools.utils.process.execute(["git", "merge-base",
         self.upstream_branch, self.head_ref]).strip()
     rev_range = "%s.." % (self.merge_base)
-    diff_lines = rbtools.postreview.execute(["git", "diff", "--no-color",
+    diff_lines = rbtools.postreview.utils.process(["git", "diff", "--no-color",
         "--full-index", "--no-ext-diff", rev_range, "--"] + files)
     parent_diff_lines = None
 
@@ -65,7 +67,8 @@ def main():
 
     args = rbtools.postreview.parse_options([])
 
-    repository_info, tool = rbtools.postreview.determine_client()
+    repository_info, tool = rbtools.clients.scan_usable_client(
+        rbtools.postreview.options)
 
     # Verify that options specific to an SCM Client have not been mis-used.
     tool.check_options()
@@ -93,9 +96,6 @@ def main():
         diff = tool.diff_between_revisions(
             rbtools.postreview.options.revision_range, args, repository_info)
         parent_diff = None
-    elif rbtools.postreview.options.label and isinstance(tool,
-        ClearCaseClient):
-        diff, parent_diff = tool.diff_label(rbtools.postreview.options.label)
     elif rbtools.postreview.options.diff_filename:
         parent_diff = None
 
@@ -124,19 +124,19 @@ def main():
     # Let's begin.
     server.login()
 
-    branch = os.path.basename(rbtools.postreview.execute(
+    branch = os.path.basename(rbtools.utils.process.execute(
         ["git", "symbolic-ref", "HEAD"], ignore_errors=True).strip())
 
     #
     # Check for the legacy location of the review id.
     #
-    rid = rbtools.postreview.execute(
+    rid = rbtools.utils.process.execute(
         ["git", "config", "--get", "reviewboard.rid"],
         ignore_errors=True).strip()
     if rid:
         if server.get_review_request(rid)["status"] != "pending":
             rid = None
-        rbtools.postreview.execute(
+        rbtools.utils.process.execute(
             ["git", "config", "--remove-section", "reviewboard"])
 
     if opts.file_list:
@@ -145,7 +145,7 @@ def main():
         ridname = "rid"
 
     if not rid:
-        rid = rbtools.postreview.execute(
+        rid = rbtools.utils.process.execute(
             ["git", "config", "--get", "branch." + branch + "." + ridname],
             ignore_errors=True).strip()
         if rid and server.get_review_request(rid)["status"] != "pending":
@@ -154,7 +154,7 @@ def main():
     if rid:
         rbtools.postreview.options.rid = rid
     else:
-        rbtools.postreview.options.description = rbtools.postreview.execute(
+        rbtools.postreview.options.description = rbtools.utils.process.execute(
             ["git", "log", "--pretty=%B", "-1"],
             ignore_errors=True).strip()
 
@@ -184,7 +184,7 @@ def main():
 
     rid = re.compile("%s/*r/(.*)/" % server_url).match(review_url).group(1)
 
-    rbtools.postreview.execute(["git", "config",
+    rbtools.utils.process.execute(["git", "config",
         "branch." + branch + "." + ridname, rid],
         ignore_errors=True).strip()
 
