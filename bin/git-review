@@ -1,6 +1,6 @@
 #!/usr/bin/python2.6
 #
-# Copyright (c) 2011 by Delphix.
+# Copyright (c) 2012 by Delphix.
 # All rights reserved.
 #
 
@@ -24,7 +24,6 @@
 # all copies or substantial portions of the Software.
 #
 
-__requires__ = 'RBTools==0.4.2'
 import os
 import sys
 import re
@@ -34,11 +33,41 @@ import rbtools.utils.process
 from optparse import OptionParser
 
 
+def update_review(branch):
+    rbtools.postreview.options.description = rbtools.utils.process.execute(
+        ["git", "log", "--pretty=%B", "-1"],
+        ignore_errors=True).strip()
+
+    bugs = []
+    lastbug = None
+
+    for line in rbtools.postreview.options.description.split("\n"):
+        lastbug = line
+        try:
+            bugs.append(re.compile("^(\d+)").match(line).group(1))
+        except Exception:
+            pass
+
+    rbtools.postreview.options.bugs_closed = ",".join(bugs)
+
+    if bugs:
+        if len(bugs) == 1:
+            rbtools.postreview.options.summary = "fix for " + lastbug
+        else:
+            rbtools.postreview.options.summary = ("fixes for %s" %
+                rbtools.postreview.options.bugs_closed)
+
+    merge = rbtools.utils.process.execute(
+            ["git", "config", "--get", "branch." + branch + ".merge"],
+            ignore_errors=True)
+    rbtools.postreview.options.branch = re.compile(
+            "refs/heads/(.*)").match(merge).group(1)
+
 def diff_files(self, files):
     self.merge_base = rbtools.utils.process.execute(["git", "merge-base",
         self.upstream_branch, self.head_ref]).strip()
     rev_range = "%s.." % (self.merge_base)
-    diff_lines = rbtools.postreview.utils.process(["git", "diff", "--no-color",
+    diff_lines = rbtools.utils.process.execute(["git", "diff", "--no-color",
         "--full-index", "--no-ext-diff", rev_range, "--"] + files)
     parent_diff_lines = None
 
@@ -52,6 +81,9 @@ def main():
     parser.add_option("-l", "--file-list",
                       dest="file_list", default=None,
                       help="diff only the file names listed in the file")
+    parser.add_option("-u", "--update",
+                      dest="update", action="store_true", default=False,
+                      help="update metadata based on bugs")
     (opts, args) = parser.parse_args(sys.argv[1:])
 
     if 'APPDATA' in os.environ:
@@ -92,6 +124,9 @@ def main():
     else:
         changenum = None
 
+    #
+    # Generate the diffs.
+    #
     if rbtools.postreview.options.revision_range:
         diff = tool.diff_between_revisions(
             rbtools.postreview.options.revision_range, args, repository_info)
@@ -121,7 +156,9 @@ def main():
     if len(diff) == 0:
         rbtools.postreview.die("There don't seem to be any diffs!")
 
-    # Let's begin.
+    #
+    # Connect to the reviewboard server.
+    #
     server.login()
 
     branch = os.path.basename(rbtools.utils.process.execute(
@@ -154,28 +191,10 @@ def main():
     if rid:
         rbtools.postreview.options.rid = rid
     else:
-        rbtools.postreview.options.description = rbtools.utils.process.execute(
-            ["git", "log", "--pretty=%B", "-1"],
-            ignore_errors=True).strip()
+        opts.update = True
 
-        bugs = []
-        lastbug = None
-
-        for line in rbtools.postreview.options.description.split("\n"):
-            lastbug = line
-            try:
-                bugs.append(re.compile("^(\d+)").match(line).group(1))
-            except Exception:
-                pass
-
-        rbtools.postreview.options.bugs_closed = ",".join(bugs)
-
-        if bugs:
-            if len(bugs) == 1:
-                rbtools.postreview.options.summary = "fix for " + lastbug
-            else:
-                rbtools.postreview.options.summary = ("fixes for %s" %
-                    rbtools.postreview.options.bugs_closed)
+    if opts.update:
+        update_review(branch)
 
     review_url = rbtools.postreview.tempt_fate(server, tool, changenum,
                             diff_content=diff,
@@ -184,23 +203,12 @@ def main():
 
     rid = re.compile("%s/*r/(.*)/" % server_url).match(review_url).group(1)
 
+    #
+    # Store the rid in the .git/config file.
+    #
     rbtools.utils.process.execute(["git", "config",
         "branch." + branch + "." + ridname, rid],
         ignore_errors=True).strip()
-
-    # Load the review up in the browser if requested to:
-    if rbtools.postreview.options.open_browser:
-        try:
-            import webbrowser
-            if 'open_new_tab' in dir(webbrowser):
-                # open_new_tab is only in python 2.5+
-                webbrowser.open_new_tab(review_url)
-            elif 'open_new' in dir(webbrowser):
-                webbrowser.open_new(review_url)
-            else:
-                os.system('start %s' % review_url)
-        except:
-            print 'Error opening review URL: %s' % review_url
 
 main()
 

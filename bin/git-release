@@ -1,13 +1,17 @@
 #!/bin/sh
 #
-# Copyright (c) 2011 by Delphix.
+# Copyright (c) 2012 by Delphix.
 # All rights reserved.
 #
 
 url=$(git config remote.origin.url)
+branch=$(git symbolic-ref HEAD)
+branch=${branch##refs/heads/}
+rbranch=$(git config --get branch.$branch.merge)
+rbranch=${rbranch##refs/heads/}
 
 url=${url#ssh://}
 id=${url%%/*}
 path=/${url#*/}/.git
 
-exec ssh $id git --git-dir=$path config gate.release
+exec ssh $id git --git-dir=$path config --get branch.$rbranch.gate-release
