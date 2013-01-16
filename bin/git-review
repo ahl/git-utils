@@ -1,6 +1,6 @@
 #!/usr/bin/python2.6
 #
-# Copyright (c) 2012 by Delphix.
+# Copyright (c) 2013 by Delphix.
 # All rights reserved.
 #
 
@@ -60,6 +60,11 @@ def update_review(branch):
     merge = rbtools.utils.process.execute(
             ["git", "config", "--get", "branch." + branch + ".merge"],
             ignore_errors=True)
+    if not merge:
+        print ("branch.%s.merge is not set in your git config" % branch)
+        print ("  git branch --set-upstream %s origin/<upstream>" % branch)
+        sys.exit(1)
+
     rbtools.postreview.options.branch = re.compile(
             "refs/heads/(.*)").match(merge).group(1)
 
