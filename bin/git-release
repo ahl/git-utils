@@ -4,7 +4,10 @@
 # All rights reserved.
 #
 
-url=$(git config remote.origin.url)
+url=$(git config remote.origin.pushURL)
+if [[ -n "$url" ]]; then
+        url=$(git config remote.origin.url)
+fi
 branch=$(git symbolic-ref HEAD)
 branch=${branch##refs/heads/}
 rbranch=$(git config --get branch.$branch.merge)
