@@ -1,11 +1,11 @@
 #!/bin/sh
 #
-# Copyright (c) 2012 by Delphix.
+# Copyright (c) 2013 by Delphix.
 # All rights reserved.
 #
 
 url=$(git config remote.origin.pushURL)
-if [[ -n "$url" ]]; then
+if [[ -z "$url" ]]; then
         url=$(git config remote.origin.url)
 fi
 branch=$(git symbolic-ref HEAD)
