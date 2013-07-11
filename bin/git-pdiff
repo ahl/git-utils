@@ -22,18 +22,11 @@ done
 
 # Figure out what branch we're in.
 branch="$(git symbolic-ref HEAD 2>/dev/null)" || die "detached head"
-branch=${branch##refs/heads/}
 
-# Figure out what branch in the origin we should compare to.
-mergebranch="$(git config --get branch.$branch.merge)" || \
-    die "branch.$branch.merge is not set"
-mergebranch=${mergebranch##refs/heads/}
-
-# Make sure the revision we've constructed maps to something real.
-git rev-parse --verify origin/$mergebranch >/dev/null 2>&1 || \
-    die "invalid revision 'origin/$mergebranch'"
+upstream_branch=$(git for-each-ref --format="%(upstream)" $branch)
+[[ -z "$upstream_branch" ]] && die "fatal: No upstream set for '$branch'"
 
 # Find the common ancestor.
-mergebase=$(git merge-base origin/$mergebranch HEAD)
+mergebase=$(git merge-base $upstream_branch HEAD)
 
 exec git diff $args $mergebase -- $*
