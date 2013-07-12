@@ -104,17 +104,10 @@ else
 
 	branch="$(git symbolic-ref HEAD 2>/dev/null)" || \
 	    die "fatal: Detached head."
-	branch=${branch##refs/heads/}
 
-	mergebranch="$(git config --get branch.$branch.merge)" || \
-	    die "fatal: branch.$branch.merge is not set."
-	mergebranch=${mergebranch##refs/heads/}
-
-	base=$(git rev-parse origin/$mergebranch)
+	base=$(git for-each-ref --format="%(upstream)" $branch)
+	[[ -z "$base" ]] && die "fatal: No upstream set for '$branch'"
 fi
-
-git rev-parse --verify $base >/dev/null 2>&1 || \
-    die "fatal: Invalid revision '$base'."
 
 oldhead=$(git rev-parse HEAD)
 
