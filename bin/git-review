@@ -50,28 +50,42 @@ def update_review(branch):
 
     rbtools.postreview.options.bugs_closed = ",".join(bugs)
 
+    hotfix = None
+
+    merge = rbtools.utils.process.execute(
+        ["git", "config", "--get", "branch." + branch + ".merge"],
+        ignore_errors=True)
+    if not merge:
+        try:
+            hotfix = rbtools.utils.process.execute(
+                ["git", "describe", "--tags", "--match=release/*",
+                    "--abbrev=0"], ignore_errors=False).strip()
+        except Exception:
+            print "branch.%s.merge is not set in your git config" % branch
+            print "  git branch --set-upstream %s origin/<upstream>" % branch
+            sys.exit(1)
+
     if bugs:
-        if len(bugs) == 1:
+        if hotfix:
+            rbtools.postreview.options.summary = "HOTFIX for " + lastbug
+        elif len(bugs) == 1:
             rbtools.postreview.options.summary = "fix for " + lastbug
         else:
             rbtools.postreview.options.summary = ("fixes for %s" %
-                rbtools.postreview.options.bugs_closed)
+                    rbtools.postreview.options.bugs_closed)
 
-    merge = rbtools.utils.process.execute(
-            ["git", "config", "--get", "branch." + branch + ".merge"],
-            ignore_errors=True)
-    if not merge:
-        print ("branch.%s.merge is not set in your git config" % branch)
-        print ("  git branch --set-upstream %s origin/<upstream>" % branch)
-        sys.exit(1)
-
-    rbtools.postreview.options.branch = re.compile(
+    if hotfix:
+        rbtools.postreview.options.branch = hotfix
+        rbtools.postreview.options.parent_branch = "HEAD^"
+    else:
+        rbtools.postreview.options.branch = re.compile(
             "refs/heads/(.*)").match(merge).group(1)
+
 
 def diff_files(self, files):
     self.merge_base = rbtools.utils.process.execute(["git", "merge-base",
         self.upstream_branch, self.head_ref]).strip()
-    rev_range = "%s.." % (self.merge_base)
+    rev_range = "%s.." % self.merge_base
     diff_lines = rbtools.utils.process.execute(["git", "diff", "--no-color",
         "--full-index", "--no-ext-diff", rev_range, "--"] + files)
     parent_diff_lines = None
@@ -129,6 +143,36 @@ def main():
     else:
         changenum = None
 
+    # rbtools.postreview.options.parent_branch = "HEAD^"
+
+    #
+    # Connect to the reviewboard server.
+    #
+    server.login()
+
+    branch = os.path.basename(rbtools.utils.process.execute(
+        ["git", "symbolic-ref", "HEAD"], ignore_errors=True).strip())
+
+    #
+    # Customize the review variable according to the file list specified.
+    #
+    if opts.file_list:
+        ridname = "rid-" + re.sub(r'[^a-z-]', r'-', opts.file_list)
+    else:
+        ridname = "rid"
+
+    rid = rbtools.utils.process.execute(
+        ["git", "config", "--get", "branch." + branch + "." + ridname],
+        ignore_errors=True).strip()
+    if rid and server.get_review_request(rid)["status"] != "pending":
+        rid = None
+
+    if rid:
+        rbtools.postreview.options.rid = rid
+    else:
+        opts.update = True
+        update_review(branch)
+
     #
     # Generate the diffs.
     #
@@ -160,46 +204,6 @@ def main():
 
     if len(diff) == 0:
         rbtools.postreview.die("There don't seem to be any diffs!")
-
-    #
-    # Connect to the reviewboard server.
-    #
-    server.login()
-
-    branch = os.path.basename(rbtools.utils.process.execute(
-        ["git", "symbolic-ref", "HEAD"], ignore_errors=True).strip())
-
-    #
-    # Check for the legacy location of the review id.
-    #
-    rid = rbtools.utils.process.execute(
-        ["git", "config", "--get", "reviewboard.rid"],
-        ignore_errors=True).strip()
-    if rid:
-        if server.get_review_request(rid)["status"] != "pending":
-            rid = None
-        rbtools.utils.process.execute(
-            ["git", "config", "--remove-section", "reviewboard"])
-
-    if opts.file_list:
-        ridname = "rid-" + re.sub(r'[^a-z-]', r'-', opts.file_list)
-    else:
-        ridname = "rid"
-
-    if not rid:
-        rid = rbtools.utils.process.execute(
-            ["git", "config", "--get", "branch." + branch + "." + ridname],
-            ignore_errors=True).strip()
-        if rid and server.get_review_request(rid)["status"] != "pending":
-            rid = None
-
-    if rid:
-        rbtools.postreview.options.rid = rid
-    else:
-        opts.update = True
-
-    if opts.update:
-        update_review(branch)
 
     review_url = rbtools.postreview.tempt_fate(server, tool, changenum,
                             diff_content=diff,
