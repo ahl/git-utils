@@ -13,7 +13,7 @@ m,message=  specify commit message
 F,file=     read log from file
 "
 
-. git-sh-setup
+. "$(git --exec-path)/git-sh-setup"
 
 #
 # This lived in git-rebase--interactive until 1.7.4 -- we can remove this once
