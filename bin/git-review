@@ -103,6 +103,9 @@ def main():
     parser.add_option("-u", "--update",
                       dest="update", action="store_true", default=False,
                       help="update metadata based on bugs")
+    parser.add_option("--Xpostreview", action="append",
+                      dest="pr_args", help="One arg to pass on to post-review. " +
+                      "This flag may be passed multiple times.")
     (opts, args) = parser.parse_args(sys.argv[1:])
 
     if 'APPDATA' in os.environ:
@@ -114,9 +117,9 @@ def main():
 
     # Load the config and cookie files
     cookie_file = os.path.join(homepath, ".post-review-cookies.txt")
-    rbtools.postreview.load_config_files(homepath)
+    _, rbtools.postreview.configs = rbtools.postreview.load_config_files(homepath)
 
-    args = rbtools.postreview.parse_options([])
+    args = rbtools.postreview.parse_options(opts.pr_args)
 
     repository_info, tool = rbtools.clients.scan_usable_client(
         rbtools.postreview.options)
