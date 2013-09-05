@@ -1,11 +1,11 @@
 #!/bin/sh
 #
-# Copyright (c) 2011 by Delphix.
+# Copyright (c) 2013 by Delphix.
 # All rights reserved.
 #
 
 SUBDIRECTORY_OK=Yes
-. git-sh-setup
+. "$(git --exec-path)/git-sh-setup"
 
 require_work_tree
 
