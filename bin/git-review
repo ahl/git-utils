@@ -143,8 +143,6 @@ def main():
     else:
         changenum = None
 
-    # rbtools.postreview.options.parent_branch = "HEAD^"
-
     #
     # Connect to the reviewboard server.
     #
