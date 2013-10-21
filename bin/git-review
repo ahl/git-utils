@@ -62,7 +62,7 @@ def update_review(branch):
                     "--abbrev=0"], ignore_errors=False).strip()
         except Exception:
             print "branch.%s.merge is not set in your git config" % branch
-            print "  git branch --set-upstream %s origin/<upstream>" % branch
+            print "  git branch --set-upstream-to=origin/<upstream>"
             sys.exit(1)
 
     if bugs:
